@@ -389,7 +389,7 @@ items:
               - bash
             args:
               - -c
-              - "sawtooth-rest-api -C tcp://$HOSTNAME:4004"
+              - "sawtooth-rest-api -v --connect tcp://$HOSTNAME:4004 --bind $HOSTNAME:8008"
 
           - name: sawtooth-settings-tp
             image: hyperledger/sawtooth-settings-tp:nightly
