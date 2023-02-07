@@ -88,7 +88,7 @@ items:
               - bash
             args:
               - -c
-              - "sawtooth-rest-api -v --connect tcp://$HOSTNAME:4004 --bind $HOSTNAME:8008"
+              - "sawtooth-rest-api -vv -C tcp://$HOSTNAME:4004 -B 0.0.0.0:8008"
 
           - name: sawtooth-shell
             image: hyperledger/sawtooth-shell:nightly
