@@ -303,7 +303,7 @@ items:
               - -c
               - "xo-tp-python -vv -C tcp://$HOSTNAME:4004"
 
-- apiVersion: v1Deployment
+- apiVersion: v1
   kind: Service
   metadata:
     name: sawtooth-1
