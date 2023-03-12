@@ -4,16 +4,18 @@ kind: List
 
 items:
 
+# --------------------------=== pod 0 ===--------------------------
+
 - apiVersion: apps/v1
   kind: Deployment
   metadata:
     name: sawtooth-0
   spec:
     replicas: 1
-    selector:
-      matchLabels:
-        name: sawtooth-0
     template:
+      selector:
+        matchLabels:
+          name: sawtooth-0
       metadata:
         labels:
           name: sawtooth-0
@@ -28,33 +30,23 @@ items:
               - "intkey-tp-python -vv -C tcp://$HOSTNAME:4004"
 
           - name: sawtooth-poet-engine
-            image: hyperledger/sawtooth-poet-engine:nightly
+            image: blockchaintp/sawtooth-poet-engine:BTP2.1.0
             command:
               - bash
             args:
               - -c
-              - "if [ ! -f /poet-shared/poet-enclave-measurement ]; then \
-                    poet enclave measurement >> /poet-shared/poet-enclave-measurement; \
-                fi && \
-                if [ ! -f /poet-shared/poet-enclave-basename ]; then \
-                    poet enclave basename >> /poet-shared/poet-enclave-basename; \
-                fi && \
-                if [ ! -f /poet-shared/simulator_rk_pub.pem ]; then \
-                    cp /etc/sawtooth/simulator_rk_pub.pem /poet-shared; \
-                fi && \
                 while [ ! -f /poet-shared/validator-0/keys/validator.priv ]; do \
                     echo 'waiting for validator key'; \
                     sleep 1; \
                 done && \
                 cp -a /poet-shared/validator-0/keys /etc/sawtooth && \
-                poet registration create -k /etc/sawtooth/keys/validator.priv -o /poet-shared/poet.batch && \
                 poet-engine -C tcp://$HOSTNAME:5050 --component tcp://$HOSTNAME:4004"
             volumeMounts:
                 - name: poet-shared-0
                   mountPath: "/poet-shared"
 
           - name: sawtooth-poet-validator-registry-tp
-            image: hyperledger/sawtooth-poet-validator-registry-tp:nightly
+            image: blockchaintp/sawtooth-poet-validator-registry-tp:BTP2.1.0
             command:
               - bash
             args:
@@ -62,7 +54,7 @@ items:
               - "poet-validator-registry-tp -vv -C tcp://$HOSTNAME:4004"
 
           - name: sawtooth-rest-api
-            image: hyperledger/sawtooth-rest-api:nightly
+            image: blockchaintp/sawtooth-rest-api:BTP2.1.0
             ports:
               - name: api
                 containerPort: 8008
@@ -70,10 +62,10 @@ items:
               - bash
             args:
               - -c
-              - "sawtooth-rest-api -vv -C tcp://$HOSTNAME:4004 -B 0.0.0.0:8008"
+              - "sawtooth-rest-api -C tcp://$HOSTNAME:4004"
 
           - name: sawtooth-settings-tp
-            image: hyperledger/sawtooth-settings-tp:nightly
+            image: blockchaintp/sawtooth-settings-tp:BTP2.1.0
             command:
               - bash
             args:
@@ -81,15 +73,38 @@ items:
               - "settings-tp -vv -C tcp://$HOSTNAME:4004"
 
           - name: sawtooth-shell
-            image: hyperledger/sawtooth-shell:nightly
+            image: blockchaintp/sawtooth-shell:BTP2.1.0
             command:
               - bash
             args:
               - -c
               - "sawtooth keygen && tail -f /dev/null"
 
+          - name: sawtooth-poet-cli
+            image: blockchaintp/sawtooth-poet-cli:BTP2.1.0
+            command:
+              - bash
+            args:
+              - -c
+              - |
+              - "if [ ! -f /poet-shared/poet-enclave-measurement ]; then 
+                      poet enclave measurement >> /poet-shared/poet-enclave-measurement; 
+                  fi && 
+                  if [ ! -f /poet-shared/poet-enclave-basename ]; then 
+                      poet enclave basename >> /poet-shared/poet-enclave-basename; 
+                  fi && 
+                  if [! -f /poet-shared/simulator_rk_pub.pem ]; then 
+                      cp /etc/sawtooth/simulator_rk_pub.pem /poet-shared; 
+                  fi && 
+                  while [ ! -f /poet-shared/validator-0/keys/validator.priv ]; do 
+                  echo 'waiting for validator key'; sleep 1; 
+                  done && 
+                  cp -a /poet-shared/validator-0/keys /etc/sawtooth && 
+                  poet registration create -k /etc/sawtooth/keys/validator.priv -o /poet-shared/poet.batch && 
+                  tail -f /dev/null"
+
           - name: sawtooth-validator
-            image: hyperledger/sawtooth-validator:nightly
+            image: blockchaintp/sawtooth-validator:BTP2.1.0
             ports:
               - name: tp
                 containerPort: 4004
@@ -101,57 +116,49 @@ items:
               - bash
             args:
               - -c
-              - "if [ ! -e /etc/sawtooth/keys/validator.priv ]; then \
-                   sawadm keygen; \
-                 fi && \
-                 mkdir -p /poet-shared/validator-0 || true && \
-                 cp -a /etc/sawtooth/keys /poet-shared/validator-0 && \
-                 while [ ! -f /poet-shared/poet-enclave-measurement ]; do \
-                     echo 'waiting for poet-enclave-measurement'; \
-                     sleep 1; \
-                 done && \
-                 while [ ! -f /poet-shared/poet-enclave-basename ]; do \
-                     echo 'waiting for poet-enclave-basename'; \
-                     sleep 1; \
-                 done && \
-                 while [ ! -f /poet-shared/poet.batch ]; do \
-                     echo 'waiting for poet.batch'; \
-                     sleep 1; \
-                 done && \
-                 if [ ! -e /root/.sawtooth/keys/my_key.priv ]; then \
-                   sawtooth keygen my_key; \
-                 fi && \
-                 cp /poet-shared/poet.batch / && \
-                 if [ ! -e config-genesis.batch ]; then \
-                   sawset genesis -k /root/.sawtooth/keys/my_key.priv -o config-genesis.batch; \
-                 fi && \
-                 if [ ! -e config.batch ]; then \
-                   sawset proposal create \
-                     -k /root/.sawtooth/keys/my_key.priv \
-                     sawtooth.consensus.algorithm.name=PoET \
-                     sawtooth.consensus.algorithm.version=0.1 \
-                     sawtooth.poet.report_public_key_pem=\"$(cat /poet-shared/simulator_rk_pub.pem)\" \
-                     sawtooth.poet.valid_enclave_measurements=$(cat /poet-shared/poet-enclave-measurement) \
-                     sawtooth.poet.valid_enclave_basenames=$(cat /poet-shared/poet-enclave-basename) \
-                     sawtooth.poet.initial_wait_time=15 \
-                     sawtooth.poet.target_wait_time=15 \
-                     sawtooth.publisher.max_batches_per_block=200 \
-                     sawtooth.poet.key_block_claim_limit=100000 \
-                     sawtooth.poet.ztest_minimum_win_count=100000 \
-                     -o config.batch; \
-                 fi && \
-                 if [ ! -e /var/lib/sawtooth/genesis.batch ]; then \
-                   sawadm genesis config-genesis.batch config.batch poet.batch; \
-                 fi && \
-                 sawtooth-validator -vv \
-                   --endpoint tcp://$SAWTOOTH_0_SERVICE_HOST:8800 \
-                   --bind component:tcp://eth0:4004 \
-                   --bind consensus:tcp://eth0:5050 \
-                   --bind network:tcp://eth0:8800 \
-                   --peers tcp://$SAWTOOTH_1_SERVICE_HOST:8800 \
-                   --peers tcp://$SAWTOOTH_2_SERVICE_HOST:8800 \
-                   --peers tcp://$SAWTOOTH_3_SERVICE_HOST:8800 \
-                   --peers tcp://$SAWTOOTH_4_SERVICE_HOST:8800"
+              - "sawadm keygen --force && 
+                  mkdir -p /poet-shared/validator-0 || true &&
+                  cp -a /etc/sawtooth/keys /poet-shared/validator-0/ 
+                  
+                  && while [ !-f /poet-shared/poet-enclave-measurement ]; do 
+                    sleep 1; 
+                  done &&
+
+                  while [ ! -f /poet-shared/poet-enclave-basename ]; do 
+                    sleep 1;
+                  done && 
+
+                  while [ ! -f /poet-shared/poet.batch ]; do 
+                    sleep 1; 
+                  done && 
+
+                  cp /poet-shared/poet.batch / && 
+
+                  sawset genesis -k /etc/sawtooth/keys/validator.priv -o config-genesis.batch && 
+
+                  sawset proposal create -k /etc/sawtooth/keys/validator.priv
+                    sawtooth.consensus.algorithm.name=PoET
+                    sawtooth.consensus.algorithm.version=0.1
+                    sawtooth.poet.report_public_key_pem="$(cat /poet-shared/simulator_rk_pub.pem)"
+                    sawtooth.poet.valid_enclave_measurements=$(cat /poet-shared/poet-enclave-measurement)
+                    sawtooth.poet.valid_enclave_basenames=$(cat /poet-shared/poet-enclave-basename)
+                    sawtooth.poet.target_wait_time=5
+                    sawtooth.poet.initial_wait_time=25
+                    sawtooth.publisher.max_batches_per_block=100
+                    sawtooth.poet.block_claim_delay=1
+                    sawtooth.poet.ztest_minimum_win_count=999999999 
+                    -o config.batch;
+
+                  sawadm genesis config-genesis.batch config.batch poet.batch && 
+
+                  sawtooth-validator -vv 
+                    --bind network:tcp://eth0:8800 
+                    --bind component:tcp://eth0:4004 
+                    --bind consensus:tcp://eth0:5050
+                    --peering static 
+                    --endpoint tcp://$SAWTOOTH_0_SERVICE_HOST:8800
+                    --scheduler parallel 
+                    --network-auth trust"
             volumeMounts:
                 - name: poet-shared-0
                   mountPath: "/poet-shared"
@@ -197,16 +204,18 @@ items:
         port: 8800
         targetPort: 8800
 
+# --------------------------=== pod 1 ===--------------------------     
+
 - apiVersion: apps/v1
   kind: Deployment
   metadata:
     name: sawtooth-1
   spec:
     replicas: 1
-    selector:
-      matchLabels:
-        name: sawtooth-1
     template:
+      selector:
+        matchLabels:
+          name: sawtooth-1
       metadata:
         labels:
           name: sawtooth-1
@@ -221,7 +230,7 @@ items:
               - "intkey-tp-python -vv -C tcp://$HOSTNAME:4004"
 
           - name: sawtooth-poet-engine
-            image: hyperledger/sawtooth-poet-engine:nightly
+            image: blockchaintp/sawtooth-poet-engine:BTP2.1.0
             command:
               - bash
             args:
@@ -237,7 +246,7 @@ items:
                   mountPath: "/poet-shared"
 
           - name: sawtooth-poet-validator-registry-tp
-            image: hyperledger/sawtooth-poet-validator-registry-tp:nightly
+            image: blockchaintp/sawtooth-poet-validator-registry-tp:BTP2.1.0
             command:
               - bash
             args:
@@ -245,7 +254,7 @@ items:
               - "poet-validator-registry-tp -vv -C tcp://$HOSTNAME:4004"
 
           - name: sawtooth-rest-api
-            image: hyperledger/sawtooth-rest-api:nightly
+            image: blockchaintp/sawtooth-rest-api:BTP2.1.0
             ports:
               - name: api
                 containerPort: 8008
@@ -253,10 +262,10 @@ items:
               - bash
             args:
               - -c
-              - "sawtooth-rest-api -vv -C tcp://$HOSTNAME:4004 -B 0.0.0.0:8008"
+              - "sawtooth-rest-api -C tcp://$HOSTNAME:4004"
 
           - name: sawtooth-settings-tp
-            image: hyperledger/sawtooth-settings-tp:nightly
+            image: blockchaintp/sawtooth-settings-tp:BTP2.1.0
             command:
               - bash
             args:
@@ -264,7 +273,7 @@ items:
               - "settings-tp -vv -C tcp://$HOSTNAME:4004"
 
           - name: sawtooth-shell
-            image: hyperledger/sawtooth-shell:nightly
+            image: blockchaintp/sawtooth-shell:BTP2.1.0
             command:
               - bash
             args:
@@ -272,7 +281,7 @@ items:
               - "sawtooth keygen && tail -f /dev/null"
 
           - name: sawtooth-validator
-            image: hyperledger/sawtooth-validator:nightly
+            image: blockchaintp/sawtooth-validator:BTP2.1.0
             ports:
               - name: tp
                 containerPort: 4004
@@ -342,16 +351,18 @@ items:
         port: 8800
         targetPort: 8800
 
+# --------------------------=== pod 2 ===--------------------------
+
 - apiVersion: apps/v1
   kind: Deployment
   metadata:
     name: sawtooth-2
   spec:
     replicas: 1
-    selector:
-      matchLabels:
-        name: sawtooth-2
     template:
+      selector:
+        matchLabels:
+          name: sawtooth-2
       metadata:
         labels:
           name: sawtooth-2
@@ -366,7 +377,7 @@ items:
               - "intkey-tp-python -vv -C tcp://$HOSTNAME:4004"
 
           - name: sawtooth-poet-engine
-            image: hyperledger/sawtooth-poet-engine:nightly
+            image: blockchaintp/sawtooth-poet-engine:BTP2.1.0
             command:
               - bash
             args:
@@ -382,7 +393,7 @@ items:
                   mountPath: "/poet-shared"
 
           - name: sawtooth-poet-validator-registry-tp
-            image: hyperledger/sawtooth-poet-validator-registry-tp:nightly
+            image: blockchaintp/sawtooth-poet-validator-registry-tp:BTP2.1.0
             command:
               - bash
             args:
@@ -390,7 +401,7 @@ items:
               - "poet-validator-registry-tp -vv -C tcp://$HOSTNAME:4004"
 
           - name: sawtooth-rest-api
-            image: hyperledger/sawtooth-rest-api:nightly
+            image: blockchaintp/sawtooth-rest-api:BTP2.1.0
             ports:
               - name: api
                 containerPort: 8008
@@ -398,10 +409,10 @@ items:
               - bash
             args:
               - -c
-              - "sawtooth-rest-api -vv -C tcp://$HOSTNAME:4004 -B 0.0.0.0:8008"
+              - "sawtooth-rest-api -C tcp://$HOSTNAME:4004"
 
           - name: sawtooth-settings-tp
-            image: hyperledger/sawtooth-settings-tp:nightly
+            image: blockchaintp/sawtooth-settings-tp:BTP2.1.0
             command:
               - bash
             args:
@@ -409,7 +420,7 @@ items:
               - "settings-tp -vv -C tcp://$HOSTNAME:4004"
 
           - name: sawtooth-shell
-            image: hyperledger/sawtooth-shell:nightly
+            image: blockchaintp/sawtooth-shell:BTP2.1.0
             command:
               - bash
             args:
@@ -417,7 +428,7 @@ items:
               - "sawtooth keygen && tail -f /dev/null"
 
           - name: sawtooth-validator
-            image: hyperledger/sawtooth-validator:nightly
+            image: blockchaintp/sawtooth-validator:BTP2.1.0
             ports:
               - name: tp
                 containerPort: 4004
@@ -457,6 +468,8 @@ items:
           - name: poet-shared-2
             emptyDir: {}
 
+# --------------------------=== pod 3 ===--------------------------
+
 - apiVersion: v1
   kind: Service
   metadata:
@@ -493,10 +506,10 @@ items:
     name: sawtooth-3
   spec:
     replicas: 1
-    selector:
-      matchLabels:
-        name: sawtooth-3
     template:
+      selector:
+        matchLabels:
+          name: sawtooth-3
       metadata:
         labels:
           name: sawtooth-3
@@ -511,7 +524,7 @@ items:
               - "intkey-tp-python -vv -C tcp://$HOSTNAME:4004"
 
           - name: sawtooth-poet-engine
-            image: hyperledger/sawtooth-poet-engine:nightly
+            image: blockchaintp/sawtooth-poet-engine:BTP2.1.0
             command:
               - bash
             args:
@@ -527,7 +540,7 @@ items:
                   mountPath: "/poet-shared"
 
           - name: sawtooth-poet-validator-registry-tp
-            image: hyperledger/sawtooth-poet-validator-registry-tp:nightly
+            image: blockchaintp/sawtooth-poet-validator-registry-tp:BTP2.1.0
             command:
               - bash
             args:
@@ -535,7 +548,7 @@ items:
               - "poet-validator-registry-tp -vv -C tcp://$HOSTNAME:4004"
 
           - name: sawtooth-rest-api
-            image: hyperledger/sawtooth-rest-api:nightly
+            image: blockchaintp/sawtooth-rest-api:BTP2.1.0
             ports:
               - name: api
                 containerPort: 8008
@@ -543,10 +556,10 @@ items:
               - bash
             args:
               - -c
-              - "sawtooth-rest-api -vv -C tcp://$HOSTNAME:4004 -B 0.0.0.0:8008"
+              - "sawtooth-rest-api -C tcp://$HOSTNAME:4004"
 
           - name: sawtooth-settings-tp
-            image: hyperledger/sawtooth-settings-tp:nightly
+            image: blockchaintp/sawtooth-settings-tp:BTP2.1.0
             command:
               - bash
             args:
@@ -554,7 +567,7 @@ items:
               - "settings-tp -vv -C tcp://$HOSTNAME:4004"
 
           - name: sawtooth-shell
-            image: hyperledger/sawtooth-shell:nightly
+            image: blockchaintp/sawtooth-shell:BTP2.1.0
             command:
               - bash
             args:
@@ -562,7 +575,7 @@ items:
               - "sawtooth keygen && tail -f /dev/null"
 
           - name: sawtooth-validator
-            image: hyperledger/sawtooth-validator:nightly
+            image: blockchaintp/sawtooth-validator:BTP2.1.0
             ports:
               - name: tp
                 containerPort: 4004
@@ -632,16 +645,18 @@ items:
         port: 8800
         targetPort: 8800
 
+# --------------------------=== pod 4 ===--------------------------
+
 - apiVersion: apps/v1
   kind: Deployment
   metadata:
     name: sawtooth-4
   spec:
     replicas: 1
-    selector:
-      matchLabels:
-        name: sawtooth-4
     template:
+      selector:
+        matchLabels:
+          name: sawtooth-4
       metadata:
         labels:
           name: sawtooth-4
@@ -656,7 +671,7 @@ items:
               - "intkey-tp-python -vv -C tcp://$HOSTNAME:4004"
 
           - name: sawtooth-poet-engine
-            image: hyperledger/sawtooth-poet-engine:nightly
+            image: blockchaintp/sawtooth-poet-engine:BTP2.1.0
             command:
               - bash
             args:
@@ -672,7 +687,7 @@ items:
                   mountPath: "/poet-shared"
 
           - name: sawtooth-poet-validator-registry-tp
-            image: hyperledger/sawtooth-poet-validator-registry-tp:nightly
+            image: blockchaintp/sawtooth-poet-validator-registry-tp:BTP2.1.0
             command:
               - bash
             args:
@@ -680,7 +695,7 @@ items:
               - "poet-validator-registry-tp -vv -C tcp://$HOSTNAME:4004"
 
           - name: sawtooth-rest-api
-            image: hyperledger/sawtooth-rest-api:nightly
+            image: blockchaintp/sawtooth-rest-api:BTP2.1.0
             ports:
               - name: api
                 containerPort: 8008
@@ -688,10 +703,10 @@ items:
               - bash
             args:
               - -c
-              - "sawtooth-rest-api -vv -C tcp://$HOSTNAME:4004 -B 0.0.0.0:8008"
+              - "sawtooth-rest-api -C tcp://$HOSTNAME:4004"
 
           - name: sawtooth-settings-tp
-            image: hyperledger/sawtooth-settings-tp:nightly
+            image: blockchaintp/sawtooth-settings-tp:BTP2.1.0
             command:
               - bash
             args:
@@ -699,7 +714,7 @@ items:
               - "settings-tp -vv -C tcp://$HOSTNAME:4004"
 
           - name: sawtooth-shell
-            image: hyperledger/sawtooth-shell:nightly
+            image: blockchaintp/sawtooth-shell:BTP2.1.0
             command:
               - bash
             args:
@@ -707,7 +722,7 @@ items:
               - "sawtooth keygen && tail -f /dev/null"
 
           - name: sawtooth-validator
-            image: hyperledger/sawtooth-validator:nightly
+            image: blockchaintp/sawtooth-validator:BTP2.1.0
             ports:
               - name: tp
                 containerPort: 4004

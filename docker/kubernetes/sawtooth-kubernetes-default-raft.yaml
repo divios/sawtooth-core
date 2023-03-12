@@ -23,33 +23,33 @@ items:
 - apiVersion: apps/v1
   kind: Deployment
   metadata:
-    name: pbft-0
+    name: raft-0
   spec:
     replicas: 1
     selector:
       matchLabels:
-        name: pbft-0
+        name: raft-0
     template:
       metadata:
         labels:
-          name: pbft-0
+          name: raft-0
       spec:
         containers:
           - name: sawtooth-intkey-tp-python
-            image: hyperledger/sawtooth-intkey-tp-python:nightly
+            image: blockchaintp/sawtooth-intkey-tp-go:BTP2.1.0
             command:
               - bash
             args:
               - -c
               - "intkey-tp-python -vv -C tcp://$HOSTNAME:4004"
 
-          - name: sawtooth-pbft-engine
-            image: blockchaintp/sawtooth-pbft-engine:BTP2.1.0
+          - name: sawtooth-raft-engine
+            image: blockchaintp/sawtooth-raft-engine:BTP2.1.0
             command:
               - bash
             args:
               - -c
-              - "pbft-engine -vv --connect tcp://$HOSTNAME:5050"
+              - "raft-engine -vv --connect tcp://$HOSTNAME:5050"
 
           - name: sawtooth-rest-api
             image: blockchaintp/sawtooth-rest-api:BTP2.1.0
@@ -119,16 +119,14 @@ items:
                   if [ ! -e config-genesis.batch ]; then
                     sawset genesis -k /root/.sawtooth/keys/my_key.priv -o config-genesis.batch
                   fi &&
-                  sleep 10 &&
-                  echo sawtooth.consensus.pbft.members=["\"$pbft0pub\",\"$pbft1pub\",\"$pbft2pub\",\"$pbft3pub\",\"$pbft4pub\""] &&
-                  if [ ! -e config.batch ]; then
-                    sawset proposal create \
-                      -k /root/.sawtooth/keys/my_key.priv \
-                      sawtooth.consensus.algorithm.name=pbft \
-                      sawtooth.consensus.algorithm.version=1.0\
-                      sawtooth.consensus.pbft.members=["\"$pbft0pub\",\"$pbft1pub\",\"$pbft2pub\",\"$pbft3pub\",\"$pbft4pub\""] \
-                      sawtooth.publisher.max_batches_per_block=1200 \
-                      -o config.batch
+                  sleep 30 &&
+                  sawset proposal create \
+                    -k /root/.sawtooth/keys/my_key.priv \
+                    sawtooth.consensus.algorithm.name=raft \
+                    sawtooth.consensus.algorithm.version=0.1\
+                    sawtooth.consensus.raft.peers=["\"$pbft0pub\",\"$pbft1pub\",\"$pbft2pub\",\"$pbft3pub\",\"$pbft4pub\""] \
+                    sawtooth.publisher.max_batches_per_block=1200 \
+                    -o config.batch
                   fi && \
                   if [ ! -e /var/lib/sawtooth/genesis.batch ]; then
                     sawadm genesis config-genesis.batch config.batch
@@ -140,7 +138,7 @@ items:
                     --bind network:tcp://eth0:8800 \
                     --scheduler parallel \
                     --peering static \
-                    --maximum-peer-connectivity 10000
+                    --maximum-peer-connectivity 10000"
 
           - name: sawtooth-xo-tp-python
             image: hyperledger/sawtooth-xo-tp-python:nightly
@@ -157,7 +155,7 @@ items:
   spec:
     type: ClusterIP
     selector:
-      name: pbft-0
+      name: raft-0
     ports:
       - name: "4004"
         protocol: TCP
@@ -186,33 +184,33 @@ items:
 - apiVersion: apps/v1
   kind: Deployment
   metadata:
-    name: pbft-1
+    name: raft-1
   spec:
     replicas: 1
     selector:
       matchLabels:
-        name: pbft-1
+        name: raft-1
     template:
       metadata:
         labels:
-          name: pbft-1
+          name: raft-1
       spec:
         containers:
           - name: sawtooth-intkey-tp-python
-            image: hyperledger/sawtooth-intkey-tp-python:nightly
+            image: blockchaintp/sawtooth-intkey-tp-go:BTP2.1.0
             command:
               - bash
             args:
               - -c
               - "intkey-tp-python -vv -C tcp://$HOSTNAME:4004"
 
-          - name: sawtooth-pbft-engine
-            image: blockchaintp/sawtooth-pbft-engine:BTP2.1.0
+          - name: sawtooth-raft-engine
+            image: blockchaintp/sawtooth-raft-engine:BTP2.1.0
             command:
               - bash
             args:
               - -c
-              - "pbft-engine -vv --connect tcp://$HOSTNAME:5050"
+              - "raft-engine -vv --connect tcp://$HOSTNAME:5050"
 
           - name: sawtooth-rest-api
             image: blockchaintp/sawtooth-rest-api:BTP2.1.0
@@ -310,7 +308,7 @@ items:
   spec:
     type: ClusterIP
     selector:
-      name: pbft-1
+      name: raft-1
     ports:
       - name: "4004"
         protocol: TCP
@@ -338,33 +336,33 @@ items:
 - apiVersion: apps/v1
   kind: Deployment
   metadata:
-    name: pbft-2
+    name: raft-2
   spec:
     replicas: 1
     selector:
       matchLabels:
-        name: pbft-2
+        name: raft-2
     template:
       metadata:
         labels:
-          name: pbft-2
+          name: raft-2
       spec:
         containers:
           - name: sawtooth-intkey-tp-python
-            image: hyperledger/sawtooth-intkey-tp-python:nightly
+            image: blockchaintp/sawtooth-intkey-tp-go:BTP2.1.0
             command:
               - bash
             args:
               - -c
               - "intkey-tp-python -vv -C tcp://$HOSTNAME:4004"
 
-          - name: sawtooth-pbft-engine
-            image: blockchaintp/sawtooth-pbft-engine:BTP2.1.0
+          - name: sawtooth-raft-engine
+            image: blockchaintp/sawtooth-raft-engine:BTP2.1.0
             command:
               - bash
             args:
               - -c
-              - "pbft-engine -vv --connect tcp://$HOSTNAME:5050"
+              - "raft-engine -vv --connect tcp://$HOSTNAME:5050"
 
           - name: sawtooth-rest-api
             image: blockchaintp/sawtooth-rest-api:BTP2.1.0
@@ -463,7 +461,7 @@ items:
   spec:
     type: ClusterIP
     selector:
-      name: pbft-2
+      name: raft-2
     ports:
       - name: "4004"
         protocol: TCP
@@ -492,33 +490,33 @@ items:
 - apiVersion: apps/v1
   kind: Deployment
   metadata:
-    name: pbft-3
+    name: raft-3
   spec:
     replicas: 1
     selector:
       matchLabels:
-        name: pbft-3
+        name: raft-3
     template:
       metadata:
         labels:
-          name: pbft-3
+          name: raft-3
       spec:
         containers:
           - name: sawtooth-intkey-tp-python
-            image: hyperledger/sawtooth-intkey-tp-python:nightly
+            image: blockchaintp/sawtooth-intkey-tp-go:BTP2.1.0
             command:
               - bash
             args:
               - -c
               - "intkey-tp-python -vv -C tcp://$HOSTNAME:4004"
 
-          - name: sawtooth-pbft-engine
-            image: blockchaintp/sawtooth-pbft-engine:BTP2.1.0
+          - name: sawtooth-raft-engine
+            image: blockchaintp/sawtooth-raft-engine:BTP2.1.0
             command:
               - bash
             args:
               - -c
-              - "pbft-engine -vv --connect tcp://$HOSTNAME:5050"
+              - "raft-engine -vv --connect tcp://$HOSTNAME:5050"
 
           - name: sawtooth-rest-api
             image: blockchaintp/sawtooth-rest-api:BTP2.1.0
@@ -618,7 +616,7 @@ items:
   spec:
     type: ClusterIP
     selector:
-      name: pbft-3
+      name: raft-3
     ports:
       - name: "4004"
         protocol: TCP
@@ -647,33 +645,33 @@ items:
 - apiVersion: apps/v1
   kind: Deployment
   metadata:
-    name: pbft-4
+    name: raft-4
   spec:
     replicas: 1
     selector:
       matchLabels:
-        name: pbft-4
+        name: raft-4
     template:
       metadata:
         labels:
-          name: pbft-4
+          name: raft-4
       spec:
         containers:
           - name: sawtooth-intkey-tp-python
-            image: hyperledger/sawtooth-intkey-tp-python:nightly
+            image: blockchaintp/sawtooth-intkey-tp-go:BTP2.1.0
             command:
               - bash
             args:
               - -c
               - "intkey-tp-python -vv -C tcp://$HOSTNAME:4004"
 
-          - name: sawtooth-pbft-engine
-            image: blockchaintp/sawtooth-pbft-engine:BTP2.1.0
+          - name: sawtooth-raft-engine
+            image: blockchaintp/sawtooth-raft-engine:BTP2.1.0
             command:
               - bash
             args:
               - -c
-              - "pbft-engine -vv --connect tcp://$HOSTNAME:5050"
+              - "raft-engine -vv --connect tcp://$HOSTNAME:5050"
 
           - name: sawtooth-rest-api
             image: blockchaintp/sawtooth-rest-api:BTP2.1.0
@@ -774,7 +772,7 @@ items:
   spec:
     type: ClusterIP
     selector:
-      name: pbft-4
+      name: raft-4
     ports:
       - name: "4004"
         protocol: TCP
