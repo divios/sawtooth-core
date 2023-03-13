@@ -12,10 +12,10 @@ items:
     name: sawtooth-0
   spec:
     replicas: 1
+    selector:
+      matchLabels:
+        name: sawtooth-0
     template:
-      selector:
-        matchLabels:
-          name: sawtooth-0
       metadata:
         labels:
           name: sawtooth-0
@@ -35,7 +35,7 @@ items:
               - bash
             args:
               - -c
-                while [ ! -f /poet-shared/validator-0/keys/validator.priv ]; do \
+              - "while [ ! -f /poet-shared/validator-0/keys/validator.priv ]; do \
                     echo 'waiting for validator key'; \
                     sleep 1; \
                 done && \
@@ -87,21 +87,24 @@ items:
             args:
               - -c
               - |
-              - "if [ ! -f /poet-shared/poet-enclave-measurement ]; then 
-                      poet enclave measurement >> /poet-shared/poet-enclave-measurement; 
+                  if [ ! -f /poet-shared/poet-enclave-measurement ]; then 
+                    poet enclave measurement >> /poet-shared/poet-enclave-measurement; 
                   fi && 
                   if [ ! -f /poet-shared/poet-enclave-basename ]; then 
-                      poet enclave basename >> /poet-shared/poet-enclave-basename; 
+                    poet enclave basename >> /poet-shared/poet-enclave-basename; 
                   fi && 
                   if [! -f /poet-shared/simulator_rk_pub.pem ]; then 
-                      cp /etc/sawtooth/simulator_rk_pub.pem /poet-shared; 
+                    cp /etc/sawtooth/simulator_rk_pub.pem /poet-shared; 
                   fi && 
                   while [ ! -f /poet-shared/validator-0/keys/validator.priv ]; do 
-                  echo 'waiting for validator key'; sleep 1; 
+                    echo 'waiting for validator key'; sleep 1; 
                   done && 
                   cp -a /poet-shared/validator-0/keys /etc/sawtooth && 
                   poet registration create -k /etc/sawtooth/keys/validator.priv -o /poet-shared/poet.batch && 
-                  tail -f /dev/null"
+                  tail -f /dev/null
+            volumeMounts:
+                - name: poet-shared-0
+                  mountPath: "/poet-shared"
 
           - name: sawtooth-validator
             image: blockchaintp/sawtooth-validator:BTP2.1.0
@@ -117,11 +120,11 @@ items:
             args:
               - -c
               - |
-              - "sawadm keygen --force && 
+                  sawadm keygen --force && 
                   mkdir -p /poet-shared/validator-0 || true &&
-                  cp -a /etc/sawtooth/keys /poet-shared/validator-0/ 
+                  cp -a /etc/sawtooth/keys /poet-shared/validator-0 &&
                   
-                  && while [ !-f /poet-shared/poet-enclave-measurement ]; do 
+                  while [ !-f /poet-shared/poet-enclave-measurement ]; do 
                     sleep 1; 
                   done &&
 
@@ -159,7 +162,7 @@ items:
                     --peering static 
                     --endpoint tcp://$SAWTOOTH_0_SERVICE_HOST:8800
                     --scheduler parallel 
-                    --network-auth trust"
+                    --network-auth trust
             volumeMounts:
                 - name: poet-shared-0
                   mountPath: "/poet-shared"
@@ -213,10 +216,10 @@ items:
     name: sawtooth-1
   spec:
     replicas: 1
+    selector:
+      matchLabels:
+        name: sawtooth-1
     template:
-      selector:
-        matchLabels:
-          name: sawtooth-1
       metadata:
         labels:
           name: sawtooth-1
@@ -360,10 +363,10 @@ items:
     name: sawtooth-2
   spec:
     replicas: 1
+    selector:
+      matchLabels:
+        name: sawtooth-2
     template:
-      selector:
-        matchLabels:
-          name: sawtooth-2
       metadata:
         labels:
           name: sawtooth-2
@@ -507,10 +510,10 @@ items:
     name: sawtooth-3
   spec:
     replicas: 1
+    selector:
+      matchLabels:
+        name: sawtooth-3
     template:
-      selector:
-        matchLabels:
-          name: sawtooth-3
       metadata:
         labels:
           name: sawtooth-3
@@ -654,10 +657,10 @@ items:
     name: sawtooth-4
   spec:
     replicas: 1
+    selector:
+      matchLabels:
+        name: sawtooth-4
     template:
-      selector:
-        matchLabels:
-          name: sawtooth-4
       metadata:
         labels:
           name: sawtooth-4
