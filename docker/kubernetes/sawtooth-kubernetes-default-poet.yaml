@@ -116,6 +116,7 @@ items:
               - bash
             args:
               - -c
+              - |
               - "sawadm keygen --force && 
                   mkdir -p /poet-shared/validator-0 || true &&
                   cp -a /etc/sawtooth/keys /poet-shared/validator-0/ 
