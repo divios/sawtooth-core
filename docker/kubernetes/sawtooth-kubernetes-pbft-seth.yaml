@@ -107,8 +107,15 @@ items:
             args:
               - -c
               - |
+                 while true; do
+                    if curl -sSf http://$HOSTNAME:8008/status > /dev/null; then
+                      break
+                    else
+                      echo "Waiting for rest api, retrying in 5 seconds..."
+                      sleep 5
+                    fi
+                 done &&
                  seth init http://$HOSTNAME:8008 &&
-                 sleep 50 &&
                  openssl ecparam -genkey -name secp256k1 | openssl ec -out key-file.pem &&
                  seth account import key-file.pem $HOSTNAME &&
                  seth account create --nonce=0 --wait $HOSTNAME > eth-account.txt &&
@@ -164,6 +171,11 @@ items:
                   if [ ! -e /var/lib/sawtooth/genesis.batch ]; then
                     sawadm genesis config-genesis.batch config.batch
                   fi &&
+                  while [ ! -e /poet-shared/validator.toml ]; do
+                    echo 'Waiting for retriever' &&
+                    sleep 1
+                  done &&
+                  cp -a /poet-shared/validator.toml /etc/sawtooth &&
                   sawtooth-validator -vv \
                     --endpoint tcp://$SAWTOOTH_SETH_0_SERVICE_HOST:8800 \
                     --bind component:tcp://eth0:4004 \
@@ -172,6 +184,10 @@ items:
                     --scheduler parallel \
                     --peering static \
                     --maximum-peer-connectivity 10000
+
+            volumeMounts:
+              - name: poet-shared-0
+                mountPath: "/poet-shared"
 
           - name: sawtooth-xo-tp-python
             image: hyperledger/sawtooth-xo-tp-python:nightly
@@ -182,21 +198,43 @@ items:
               - "xo-tp-python -vv -C tcp://$HOSTNAME:4004"
 
           - name: sawtooth-discovery-client
-            image: divios/tfg-discovery-client
+            image: divios/tfg-discovery-client:python-1.1
             command:
               - bash
             args:
               - -c
-              - "gunicorn app.main:app"
+              - |
+                  export HOST=$SAWTOOTH_SETH_0_SERVICE_HOST &&
+                  gunicorn app.main:app
             env:
-              - name: HOST
-                value: $SAWTOOTH_SETH_0_SERVICE_HOST
-              - name: PORT
-                value: '8000'
+              - name: PORT_EUREKA
+                value: '8800'
               - name: APP_NAME
                 value: sawtooth-node
               - name: REMOTE
                 value: http://discovery-server-service.edge.svc.cluster.local:8761
+
+          - name: sawtooth-discovery-retriever
+            image: divios/tfg-discovery-retriever:1.1
+            command:
+              - bash
+            args:
+              - -c
+              - |
+                  export OWN_HOST=$SAWTOOTH_SETH_0_SERVICE_HOST &&
+                  python3 app/retriever.py &&
+                  cat /poet-shared/validator.toml &&
+                  tail -f /dev/null
+            env:
+              - name: OUTPUT_FILE
+                value: '/poet-shared/validator.toml'
+            volumeMounts:
+                - name: poet-shared-0
+                  mountPath: "/poet-shared"
+
+        volumes:
+          - name: poet-shared-0
+            emptyDir: {}
 
 - apiVersion: v1
   kind: Service
@@ -318,8 +356,15 @@ items:
             args:
               - -c
               - |
+                 while true; do
+                    if curl -sSf http://$HOSTNAME:8008/status > /dev/null; then
+                      break
+                    else
+                      echo "Waiting for rest api, retrying in 5 seconds..."
+                      sleep 5
+                    fi
+                 done &&
                  seth init http://$HOSTNAME:8008 &&
-                 sleep 50 &&
                  openssl ecparam -genkey -name secp256k1 | openssl ec -out key-file.pem &&
                  seth account import key-file.pem $HOSTNAME &&
                  seth account create --nonce=0 --wait $HOSTNAME > eth-account.txt &&
@@ -364,6 +409,11 @@ items:
                     echo $pbft1pub > /etc/sawtooth/keys/validator.pub
                   fi &&
                   sawtooth keygen my_key &&
+                  while [ ! -e /poet-shared/validator.toml ]; do
+                    echo 'Waiting for retriever' &&
+                    sleep 1
+                  done &&
+                  cp -a /poet-shared/validator.toml /etc/sawtooth &&
                   sawtooth-validator -vv \
                     --endpoint tcp://$SAWTOOTH_SETH_1_SERVICE_HOST:8800 \
                     --bind component:tcp://eth0:4004 \
@@ -371,8 +421,11 @@ items:
                     --bind network:tcp://eth0:8800 \
                     --scheduler parallel \
                     --peering static \
-                    --maximum-peer-connectivity 10000 \
-                    --peers tcp://$SAWTOOTH_SETH_0_SERVICE_HOST:8800
+                    --maximum-peer-connectivity 10000
+
+            volumeMounts:
+              - name: poet-shared-1
+                mountPath: "/poet-shared"
 
           - name: sawtooth-xo-tp-python
             image: hyperledger/sawtooth-xo-tp-python:nightly
@@ -383,21 +436,43 @@ items:
               - "xo-tp-python -vv -C tcp://$HOSTNAME:4004"
 
           - name: sawtooth-discovery-client
-            image: divios/tfg-discovery-client
+            image: divios/tfg-discovery-client:python-1.1
             command:
               - bash
             args:
               - -c
-              - "gunicorn app.main:app"
+              - |
+                  export HOST=$SAWTOOTH_SETH_1_SERVICE_HOST &&
+                  gunicorn app.main:app
             env:
-              - name: HOST
-                value: $SAWTOOTH_SETH_1_SERVICE_HOST
-              - name: PORT
-                value: '8000'
+              - name: PORT_EUREKA
+                value: '8800'
               - name: APP_NAME
                 value: sawtooth-node
               - name: REMOTE
                 value: http://discovery-server-service.edge.svc.cluster.local:8761
+
+          - name: sawtooth-discovery-retriever
+            image: divios/tfg-discovery-retriever:1.1
+            command:
+              - bash
+            args:
+              - -c
+              - |
+                  export OWN_HOST=$SAWTOOTH_SETH_1_SERVICE_HOST &&
+                  python3 app/retriever.py &&
+                  cat /poet-shared/validator.toml &&
+                  tail -f /dev/null
+            env:
+              - name: OUTPUT_FILE
+                value: '/poet-shared/validator.toml'
+            volumeMounts:
+                - name: poet-shared-1
+                  mountPath: "/poet-shared"
+
+        volumes:
+          - name: poet-shared-1
+            emptyDir: {}
 
 
 - apiVersion: v1
@@ -519,8 +594,15 @@ items:
             args:
               - -c
               - |
+                 while true; do
+                    if curl -sSf http://$HOSTNAME:8008/status > /dev/null; then
+                      break
+                    else
+                      echo "Waiting for rest api, retrying in 5 seconds..."
+                      sleep 5
+                    fi
+                 done &&
                  seth init http://$HOSTNAME:8008 &&
-                 sleep 50 &&
                  openssl ecparam -genkey -name secp256k1 | openssl ec -out key-file.pem &&
                  seth account import key-file.pem $HOSTNAME &&
                  seth account create --nonce=0 --wait $HOSTNAME > eth-account.txt &&
@@ -565,6 +647,11 @@ items:
                     echo $pbft2pub > /etc/sawtooth/keys/validator.pub
                   fi &&
                   sawtooth keygen my_key &&
+                  while [ ! -e /poet-shared/validator.toml ]; do
+                    echo 'Waiting for retriever' &&
+                    sleep 1
+                  done &&
+                  cp -a /poet-shared/validator.toml /etc/sawtooth &&
                   sawtooth-validator -vv \
                     --endpoint tcp://$SAWTOOTH_SETH_2_SERVICE_HOST:8800 \
                     --bind component:tcp://eth0:4004 \
@@ -572,9 +659,11 @@ items:
                     --bind network:tcp://eth0:8800 \
                     --scheduler parallel \
                     --peering static \
-                    --maximum-peer-connectivity 10000 \
-                    --peers tcp://$SAWTOOTH_SETH_0_SERVICE_HOST:8800 \
-                    --peers tcp://$SAWTOOTH_SETH_1_SERVICE_HOST:8800
+                    --maximum-peer-connectivity 10000
+
+            volumeMounts:
+                - name: poet-shared-2
+                  mountPath: "/poet-shared"
 
           - name: sawtooth-xo-tp-python
             image: hyperledger/sawtooth-xo-tp-python:nightly
@@ -585,22 +674,43 @@ items:
               - "xo-tp-python -vv -C tcp://$HOSTNAME:4004"
 
           - name: sawtooth-discovery-client
-            image: divios/tfg-discovery-client
+            image: divios/tfg-discovery-client:python-1.1
             command:
               - bash
             args:
               - -c
-              - "gunicorn app.main:app"
+              - |
+                  export HOST=$SAWTOOTH_SETH_2_SERVICE_HOST &&
+                  gunicorn app.main:app
             env:
-              - name: HOST
-                value: $SAWTOOTH_SETH_2_SERVICE_HOST
-              - name: PORT
-                value: '8000'
+              - name: PORT_EUREKA
+                value: '8800'
               - name: APP_NAME
                 value: sawtooth-node
               - name: REMOTE
                 value: http://discovery-server-service.edge.svc.cluster.local:8761
 
+          - name: sawtooth-discovery-retriever
+            image: divios/tfg-discovery-retriever:1.1
+            command:
+              - bash
+            args:
+              - -c
+              - |
+                  export OWN_HOST=$SAWTOOTH_SETH_2_SERVICE_HOST &&
+                  python3 app/retriever.py &&
+                  cat /poet-shared/validator.toml &&
+                  tail -f /dev/null
+            env:
+              - name: OUTPUT_FILE
+                value: '/poet-shared/validator.toml'
+            volumeMounts:
+                - name: poet-shared-2
+                  mountPath: "/poet-shared"
+
+        volumes:
+          - name: poet-shared-2
+            emptyDir: {}
 
 - apiVersion: v1
   kind: Service
@@ -722,8 +832,15 @@ items:
             args:
               - -c
               - |
+                 while true; do
+                    if curl -sSf http://$HOSTNAME:8008/status > /dev/null; then
+                      break
+                    else
+                      echo "Waiting for rest api, retrying in 5 seconds..."
+                      sleep 5
+                    fi
+                 done &&
                  seth init http://$HOSTNAME:8008 &&
-                 sleep 50 &&
                  openssl ecparam -genkey -name secp256k1 | openssl ec -out key-file.pem &&
                  seth account import key-file.pem $HOSTNAME &&
                  seth account create --nonce=0 --wait $HOSTNAME > eth-account.txt &&
@@ -768,6 +885,11 @@ items:
                     echo $pbft3pub > /etc/sawtooth/keys/validator.pub
                   fi &&
                   sawtooth keygen my_key &&
+                  while [ ! -e /poet-shared/validator.toml ]; do
+                    echo 'Waiting for retriever' &&
+                    sleep 1
+                  done &&
+                  cp -a /poet-shared/validator.toml /etc/sawtooth &&
                   sawtooth-validator -vv \
                     --endpoint tcp://$SAWTOOTH_SETH_3_SERVICE_HOST:8800 \
                     --bind component:tcp://eth0:4004 \
@@ -775,10 +897,11 @@ items:
                     --bind network:tcp://eth0:8800 \
                     --scheduler parallel \
                     --peering static \
-                    --maximum-peer-connectivity 10000 \
-                    --peers tcp://$SAWTOOTH_SETH_0_SERVICE_HOST:8800 \
-                    --peers tcp://$SAWTOOTH_SETH_1_SERVICE_HOST:8800 \
-                    --peers tcp://$SAWTOOTH_SETH_2_SERVICE_HOST:8800
+                    --maximum-peer-connectivity 10000
+
+            volumeMounts:
+                - name: poet-shared-3
+                  mountPath: "/poet-shared"
 
           - name: sawtooth-xo-tp-python
             image: hyperledger/sawtooth-xo-tp-python:nightly
@@ -789,22 +912,43 @@ items:
               - "xo-tp-python -vv -C tcp://$HOSTNAME:4004"
 
           - name: sawtooth-discovery-client
-            image: divios/tfg-discovery-client
+            image: divios/tfg-discovery-client:python-1.1
             command:
               - bash
             args:
               - -c
-              - "gunicorn app.main:app"
+              - |
+                  export HOST=$SAWTOOTH_SETH_3_SERVICE_HOST &&
+                  gunicorn app.main:app
             env:
-              - name: HOST
-                value: $SAWTOOTH_SETH_3_SERVICE_HOST
-              - name: PORT
-                value: '8000'
+              - name: PORT_EUREKA
+                value: '8800'
               - name: APP_NAME
                 value: sawtooth-node
               - name: REMOTE
                 value: http://discovery-server-service.edge.svc.cluster.local:8761
 
+          - name: sawtooth-discovery-retriever
+            image: divios/tfg-discovery-retriever:1.1
+            command:
+              - bash
+            args:
+              - -c
+              - |
+                  export OWN_HOST=$SAWTOOTH_SETH_3_SERVICE_HOST &&
+                  python3 app/retriever.py &&
+                  cat /poet-shared/validator.toml &&
+                  tail -f /dev/null
+            env:
+              - name: OUTPUT_FILE
+                value: '/poet-shared/validator.toml'
+            volumeMounts:
+                - name: poet-shared-3
+                  mountPath: "/poet-shared"
+
+        volumes:
+          - name: poet-shared-3
+            emptyDir: {}
 
 - apiVersion: v1
   kind: Service
@@ -926,8 +1070,15 @@ items:
             args:
               - -c
               - |
+                 while true; do
+                    if curl -sSf http://$HOSTNAME:8008/status > /dev/null; then
+                      break
+                    else
+                      echo "Waiting for rest api, retrying in 5 seconds..."
+                      sleep 5
+                    fi
+                 done &&
                  seth init http://$HOSTNAME:8008 &&
-                 sleep 50 &&
                  openssl ecparam -genkey -name secp256k1 | openssl ec -out key-file.pem &&
                  seth account import key-file.pem $HOSTNAME &&
                  seth account create --nonce=0 --wait $HOSTNAME > eth-account.txt &&
@@ -972,6 +1123,11 @@ items:
                     echo $pbft4pub > /etc/sawtooth/keys/validator.pub
                   fi &&
                   sawtooth keygen my_key &&
+                  while [ ! -e /poet-shared/validator.toml ]; do
+                    echo 'Waiting for retriever' &&
+                    sleep 1
+                  done &&
+                  cp -a /poet-shared/validator.toml /etc/sawtooth &&
                   sawtooth-validator -vv \
                     --endpoint tcp://$SAWTOOTH_SETH_4_SERVICE_HOST:8800 \
                     --bind component:tcp://eth0:4004 \
@@ -979,11 +1135,11 @@ items:
                     --bind network:tcp://eth0:8800 \
                     --scheduler parallel \
                     --peering static \
-                    --maximum-peer-connectivity 10000 \
-                    --peers tcp://$SAWTOOTH_SETH_0_SERVICE_HOST:8800 \
-                    --peers tcp://$SAWTOOTH_SETH_1_SERVICE_HOST:8800 \
-                    --peers tcp://$SAWTOOTH_SETH_2_SERVICE_HOST:8800 \
-                    --peers tcp://$SAWTOOTH_SETH_3_SERVICE_HOST:8800
+                    --maximum-peer-connectivity 10000
+
+            volumeMounts:
+                - name: poet-shared-4
+                  mountPath: "/poet-shared"
 
           - name: sawtooth-xo-tp-python
             image: hyperledger/sawtooth-xo-tp-python:nightly
@@ -994,22 +1150,43 @@ items:
               - "xo-tp-python -vv -C tcp://$HOSTNAME:4004"
 
           - name: sawtooth-discovery-client
-            image: divios/tfg-discovery-client
+            image: divios/tfg-discovery-client:python-1.1
             command:
               - bash
             args:
               - -c
-              - "gunicorn app.main:app"
+              - |
+                  export HOST=$SAWTOOTH_SETH_4_SERVICE_HOST &&
+                  gunicorn app.main:app
             env:
-              - name: HOST
-                value: $SAWTOOTH_SETH_4_SERVICE_HOST
-              - name: PORT
-                value: '8000'
+              - name: PORT_EUREKA
+                value: '8800'
               - name: APP_NAME
                 value: sawtooth-node
               - name: REMOTE
                 value: http://discovery-server-service.edge.svc.cluster.local:8761
 
+          - name: sawtooth-discovery-retriever
+            image: divios/tfg-discovery-retriever:1.1
+            command:
+              - bash
+            args:
+              - -c
+              - |
+                  export OWN_HOST=$SAWTOOTH_SETH_4_SERVICE_HOST &&
+                  python3 app/retriever.py &&
+                  cat /poet-shared/validator.toml &&
+                  tail -f /dev/null
+            env:
+              - name: OUTPUT_FILE
+                value: '/poet-shared/validator.toml'
+            volumeMounts:
+                - name: poet-shared-4
+                  mountPath: "/poet-shared"
+
+        volumes:
+          - name: poet-shared-4
+            emptyDir: {}
 
 - apiVersion: v1
   kind: Service
